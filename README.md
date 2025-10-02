@@ -165,11 +165,11 @@ kubectl port-forward svc/llm2slm-api 8080:80
 ## Algorithm (High‑Level)
 
 ### 1) Token-level KD (soft targets)
-For sequence tokens \(t=1,\dots,L-1\) (causal shift), with teacher/student logits \(z_t^{(T)}, z_t^{(S)} \in \mathbb{R}^{V}\) and temperature \(T>0\):
+For sequence tokens $t=1,\dots,L-1$ (causal shift), with teacher/student logits $z_t^{(T)}, z_t^{(S)} \in \mathbb{R}^{V}$ and temperature $T>0$:
 
 $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
-The factor \(T^2\) preserves gradient scale under temperature smoothing.
+The factor $T^2$ preserves gradient scale under temperature smoothing.
 
 ### 2) Hard pseudo-labels (teacher argmax)
 Let \(\hat{y}_t=\arg\max_{v} z_{t,v}^{(T)}\) (no temperature):
@@ -177,23 +177,24 @@ Let \(\hat{y}_t=\arg\max_{v} z_{t,v}^{(T)}\) (no temperature):
 $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 ### 3) Hidden-state alignment
-Let \(h_t^{(T)},h_t^{(S)}\in\mathbb{R}^{d}\) be last-layer hidden states:
+
+Let $h_t^{(T)}, h_t^{(S)} \in \mathbb{R}^{d}$ be last-layer hidden states:
 
 $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 ### 4) Attention-map alignment (optional)
-For last-layer attention tensors \(A^{(S)},A^{(T)}\in\mathbb{R}^{H\times L\times L}\):
+For last-layer attention tensors $A^{(S)}, A^{(T)} \in \mathbb{R}^{H \times L \times L}$:
 
 $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
-**Causal shift.** For auto-regressive LM, losses use \((\text{logits at }t)\) vs \((\text{label }x_{t+1})\). We implement this by slicing logits \([\,:\!,0{:}L{-}1]\) and labels \([\,:\!,1{:}L]\).
+**Causal shift.** For auto-regressive LM, losses use $(\text{logits at }t)$ vs $(\text{label }x_{t+1})$. We implement this by slicing logits $[,:!,0{:}L{-}1]$ and labels $[,:!,1{:}L]$.
 
 **LoRA (optional).** We fine-tune a low-rank adapter on the student; all losses backprop into LoRA parameters (and full weights if enabled).
 
 ### Symbols
-- \(N\): total token count across batch after causal shift.
-- \(V\): vocab size; \(d\): hidden size; \(H\): attention heads; \(L\): sequence len.
-- \(\alpha,\beta,\gamma,\delta,\varepsilon \ge 0\): loss weights; \(T\): temperature.
+- $N$: total token count across batch after causal shift.
+- $V$: vocab size; $d$: hidden size; $H$: attention heads; $L$: sequence len.
+- $\alpha,\beta,\gamma,\delta,\varepsilon \ge 0$: loss weights; $T$: temperature.
 
 ### Typical defaults
 
