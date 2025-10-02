@@ -52,11 +52,11 @@ flowchart LR
 
 ## Key Features
 
-- **Hybrid KD loss** — temperature‑scaled KL (soft targets) + CE (hard pseudo‑labels) + hidden‑state MSE + cosine alignment; optional attention‑map MSE. [1–4, 14]  
-- **Parameter‑efficient finetuning** — optional **LoRA** on the student. [5]  
-- **Quantization & export** — post‑training dynamic INT8 and **ONNX** export (best‑effort). [6–8]  
+- **Hybrid KD loss** — temperature‑scaled KL (soft targets) + CE (hard pseudo‑labels) + hidden‑state MSE + cosine alignment; optional attention‑map MSE.  
+- **Parameter‑efficient finetuning** — optional **LoRA** on the student.  
+- **Quantization & export** — post‑training dynamic INT8 and **ONNX** export (best‑effort).  
 - **Kubernetes‑ready** — PVC, ConfigMap, Deployment/Service for API, and a one‑off Job.  
-- **Hugging Face ecosystem** — Transformers/Datasets/Accelerate/PEFT. [9–12]
+- **Hugging Face ecosystem** — Transformers/Datasets/Accelerate/PEFT.
 
 ---
 
@@ -164,26 +164,100 @@ kubectl port-forward svc/llm2slm-api 8080:80
 
 ## Algorithm (High‑Level)
 
+We distill a **teacher** LLM into a **student** SLM by minimizing a hybrid objective that combines **token-level knowledge distillation**, **hard pseudo-labeling**, and **representation alignment**:
+
+\[
+\mathcal{L}
+= \alpha\,\mathcal{L}_{\text{KD}}
++ \beta\,\mathcal{L}_{\text{CE}}
++ \gamma\,\mathcal{L}_{\text{MSE}}
++ \delta\,\mathcal{L}_{\cos}
++ \varepsilon\,\mathcal{L}_{\text{Attn}}.
+\]
+
+### 1) Token-level KD (soft targets)
+For sequence tokens \(t=1,\dots,L-1\) (causal shift), with teacher/student logits \(z_t^{(T)}, z_t^{(S)} \in \mathbb{R}^{V}\) and temperature \(T>0\):
+\[
+p_t^{(T)}=\operatorname{softmax}\!\left(\frac{z_t^{(T)}}{T}\right),\quad
+\log p_t^{(S)}=\log\operatorname{softmax}\!\left(\frac{z_t^{(S)}}{T}\right).
+\]
+\[
+\mathcal{L}_{\text{KD}}
+= \frac{T^2}{N}\sum_{t}{\mathrm{KL}\!\left(p_t^{(T)}\,\big\|\,p_t^{(S)}\right)}.
+\]
+The factor \(T^2\) preserves gradient scale under temperature smoothing.
+
+### 2) Hard pseudo-labels (teacher argmax)
+Let \(\hat{y}_t=\arg\max_{v} z_{t,v}^{(T)}\) (no temperature):
+\[
+\mathcal{L}_{\text{CE}} = -\frac{1}{N}\sum_{t}{\log p^{(S)}( \hat{y}_t \mid x_{\le t})}.
+\]
+
+### 3) Hidden-state alignment
+Let \(h_t^{(T)},h_t^{(S)}\in\mathbb{R}^{d}\) be last-layer hidden states:
+\[
+\mathcal{L}_{\text{MSE}}=\frac{1}{N}\sum_{t}{\left\|h_t^{(S)}-h_t^{(T)}\right\|_2^2},\qquad
+\mathcal{L}_{\cos}=1-\frac{1}{N}\sum_{t}{\frac{\langle h_t^{(S)},h_t^{(T)}\rangle}{\|h_t^{(S)}\|_2\,\|h_t^{(T)}\|_2}}.
+\]
+
+### 4) Attention-map alignment (optional)
+For last-layer attention tensors \(A^{(S)},A^{(T)}\in\mathbb{R}^{H\times L\times L}\):
+\[
+\mathcal{L}_{\text{Attn}}=\frac{1}{H}\sum_{h=1}^{H}\frac{1}{L^2}\left\|A_h^{(S)}-A_h^{(T)}\right\|_F^2.
+\]
+
+**Causal shift.** For auto-regressive LM, losses use \((\text{logits at }t)\) vs \((\text{label }x_{t+1})\). We implement this by slicing logits \([\,:\!,0{:}L{-}1]\) and labels \([\,:\!,1{:}L]\).
+
+**LoRA (optional).** We fine-tune a low-rank adapter on the student; all losses backprop into LoRA parameters (and full weights if enabled).
+
+### Symbols
+- \(N\): total token count across batch after causal shift.
+- \(V\): vocab size; \(d\): hidden size; \(H\): attention heads; \(L\): sequence len.
+- \(\alpha,\beta,\gamma,\delta,\varepsilon \ge 0\): loss weights; \(T\): temperature.
+
+### Typical defaults
+\[
+T{=}2.0,\quad \alpha{=}0.7,\;\beta{=}0.3,\;\gamma{=}0.05,\;\delta{=}0.05,\;\varepsilon{=}0.0.
+\]
+
+### Pseudocode (per step)
+```python
+# x: input ids, attn_mask: mask
+with torch.no_grad():
+    t = teacher(x, attention_mask=attn_mask,
+                output_hidden_states=True, output_attentions=True)
+
+s = student(x, attention_mask=attn_mask,
+            output_hidden_states=True, output_attentions=True)
+
+# Causal shift
+logits_s = s.logits[:, :-1, :]
+logits_t = t.logits[:, :-1, :]
+labels    = x[:, 1:]
+
+# KD (soft)
+logp_sT = (logits_s / T).log_softmax(-1)
+p_tT    = (logits_t / T).softmax(-1)
+L_kd    = kl_div(logp_sT, p_tT, reduction="batchmean") * (T * T)
+
+# CE (hard teacher argmax)
+yhat = logits_t.argmax(-1)
+L_ce = F.cross_entropy(logits_s.reshape(-1, V), yhat.reshape(-1))
+
+# Hidden alignment
+h_s, h_t = s.hidden_states[-1], t.hidden_states[-1]
+L_mse = F.mse_loss(h_s, h_t)
+L_cos = 1.0 - F.cosine_similarity(h_s, h_t, dim=-1).mean()
+
+# Attention (optional)
+L_attn = 0.0
+if s.attentions and t.attentions:
+    L_attn = F.mse_loss(s.attentions[-1], t.attentions[-1])
+
+loss = α*L_kd + β*L_ce + γ*L_mse + δ*L_cos + ε*L_attn
+loss.backward()
+optimizer.step(); scheduler.step(); optimizer.zero_grad()
 ```
-Loss = α·KL(softmax(z_t/T) || softmax(z_s/T))·T^2
-     + β·CE(z_s, argmax z_t)
-     + γ·MSE(h_s, h_t)
-     + δ·(1 − cos(h_s, h_t))
-     + ε·MSE(A_s, A_t)            # optional attention alignment
-```
-
-- z_t, z_s: teacher/student logits; h: last hidden states; A: attention.  
-- Temperature T smooths targets; LoRA optionally applied to student for efficiency. [5]  
-- Post‑training dynamic quantization exports an `int8-dynamic/` variant; ONNX export is best‑effort. [6–8]
-
----
-
-## Configuration & Paths
-
-- **`DATA_DIR`**: base path for artifacts (default `/data`; use `./data` on Windows).  
-- **`API_PREFIX`**: optional prefix for all routes (e.g., `/v1`).  
-- **K8s ConfigMap** (`k8s/config.yaml`): default teacher/student/dataset and steps.  
-- **Artifacts**: `DATA_DIR/artifacts/<job_id>/`. Contents include `config.json`, `pytorch_model.bin`, tokenizer files, `int8-dynamic/`, and (if supported) `model.onnx`.
 
 ---
 
@@ -210,7 +284,7 @@ numpy>=2.0
 ## References
 
 1. Hinton, G., Vinyals, O., & Dean, J. (2015). *Distilling the Knowledge in a Neural Network.* arXiv:1503.02531. <https://arxiv.org/abs/1503.02531>  
-2. Sanh, V., Debut, L., Chaumond, J., & Wolf, T. (2019). *DistilBERT, a distilled version of BERT.* arXiv:1910.01108. <https://arxiv.org/abs/1910.01108>  
+2. Sanh, V., Debut, L., Chaumond, J., & Wolf, T. (2019). *DistilBERT: a distilled version of BERT.* arXiv:1910.01108. <https://arxiv.org/abs/1910.01108>  
 3. Jiao, X. et al. (2020). *TinyBERT: Distilling BERT for Natural Language Understanding.* arXiv:1909.10351. <https://arxiv.org/abs/1909.10351>  
 4. Romero, A. et al. (2015). *FitNets: Hints for Thin Deep Nets.* arXiv:1412.6550. <https://arxiv.org/abs/1412.6550>  
 5. Hu, E. J. et al. (2021). *LoRA: Low-Rank Adaptation of Large Language Models.* arXiv:2106.09685. <https://arxiv.org/abs/2106.09685>  
