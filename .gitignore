@@ -1,0 +1,57 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual/Conda envs
+.venv/
+venv/
+env/
+ENV/
+.conda/
+.env
+.env.*
+
+# Packaging / build
+build/
+dist/
+*.egg-info/
+
+# Caches & temp
+.cache/
+.tmp/
+tmp/
+*.log
+.ipynb_checkpoints/
+
+# --- IDE / OS ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# --- ML artifacts & datasets ---
+data/
+artifacts/
+*/artifacts/
+hf_cache/
+runs/
+wandb/
+checkpoints/
+*.ckpt
+*.bin
+*.safetensors
+
+# --- Model exports ---
+# Remove these lines or use Git LFS if you need to version model exports.
+*.onnx
+int8-dynamic/
+onnx/
+export/
+
+# --- Docker / local env ---
+*.local.env
+
+# --- Kubernetes ---
+# (Keep k8s/*.yaml tracked by default)

@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: llm2slm-config
+data:
+  TEACHER_MODEL: gpt2
+  STUDENT_MODEL: distilgpt2
+  DATASET: wikitext
+  SUBSET: wikitext-2-raw-v1
+  MAX_STEPS: "200"

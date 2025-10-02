@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: llm2slm-distill
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: worker
+        image: REPLACE_ME/llm2slm:latest
+        envFrom:
+        - configMapRef:
+            name: llm2slm-config
+        env:
+        - name: DATA_DIR
+          value: /data
+        volumeMounts:
+        - name: data
+          mountPath: /data
+        command:
+          - bash
+          - -lc
+          - |
+            python - <<'PY'
+from app import submit_distill
+from schemas import DistillConfig
+import os, json
+cfg = DistillConfig(
+  teacher_model=os.getenv("TEACHER_MODEL","gpt2"),
+  student_model=os.getenv("STUDENT_MODEL","distilgpt2"),
+  dataset=os.getenv("DATASET","wikitext"),
+  subset=os.getenv("SUBSET","wikitext-2-raw-v1"),
+  max_steps=int(os.getenv("MAX_STEPS","200"))
+)
+print(submit_distill(cfg))
+PY
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: llm2slm-pvc

@@ -1,0 +1,19 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+
+# Allow Py3.13-compatible wheels (avoids Rust build for tokenizers)
+transformers>=4.45,<4.47
+tokenizers>=0.20.1
+
+datasets==3.0.1
+accelerate==0.34.2
+peft==0.13.2
+torch>=2.2.0
+
+# ONNX export (optional): runtime pinned to a Py3.13 wheel; ONNX >=1.17 has better wheel coverage
+onnx>=1.17.0
+onnxruntime==1.23.0
+
+# NumPy 2.x for Py3.13 wheels
+numpy>=2.0
