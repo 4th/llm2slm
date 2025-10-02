@@ -164,64 +164,27 @@ kubectl port-forward svc/llm2slm-api 8080:80
 
 ## Algorithm (High‑Level)
 
-### Compact loss formula
-
-$$
-\text{Loss} =
-\alpha\,\mathrm{KL}\!\left(\mathrm{softmax}\!\left(\frac{z_t}{T}\right)\,\big\|\,\mathrm{softmax}\!\left(\frac{z_s}{T}\right)\right) T^2
-+ \beta\,\mathrm{CE}\!\big(z_s, \arg\max z_t\big)
-+ \gamma\,\mathrm{MSE}\!\big(h_s, h_t\big)
-+ \delta\,\big(1 - \cos(h_s, h_t)\big)
-+ \varepsilon\,\mathrm{MSE}\!\big(A_s, A_t\big)\;\; \text{(optional attention alignment)}
-$$
-
-We distill a **teacher** LLM into a **student** SLM by minimizing a hybrid objective that combines **token-level knowledge distillation**, **hard pseudo-labeling**, and **representation alignment**:
-
-$$
-\mathcal{L}
-= \alpha\,\mathcal{L}_{\text{KD}}
-+ \beta\,\mathcal{L}_{\text{CE}}
-+ \gamma\,\mathcal{L}_{\text{MSE}}
-+ \delta\,\mathcal{L}_{\cos}
-+ \varepsilon\,\mathcal{L}_{\text{Attn}}.
-$$
-
 ### 1) Token-level KD (soft targets)
 For sequence tokens \(t=1,\dots,L-1\) (causal shift), with teacher/student logits \(z_t^{(T)}, z_t^{(S)} \in \mathbb{R}^{V}\) and temperature \(T>0\):
 
-$$
-p_t^{(T)}=\operatorname{softmax}\!\left(\frac{z_t^{(T)}}{T}\right),\quad
-\log p_t^{(S)}=\log\operatorname{softmax}\!\left(\frac{z_t^{(S)}}{T}\right).
-$$
-
-$$
-\mathcal{L}_{\text{KD}}
-= \frac{T^2}{N}\sum_{t}{\mathrm{KL}\!\left(p_t^{(T)}\,\big\|\,p_t^{(S)}\right)}.
-$$
+$$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 The factor \(T^2\) preserves gradient scale under temperature smoothing.
 
 ### 2) Hard pseudo-labels (teacher argmax)
 Let \(\hat{y}_t=\arg\max_{v} z_{t,v}^{(T)}\) (no temperature):
 
-$$
-\mathcal{L}_{\text{CE}} = -\frac{1}{N}\sum_{t}{\log p^{(S)}( \hat{y}_t \mid x_{\le t})}.
-$$
+$$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 ### 3) Hidden-state alignment
 Let \(h_t^{(T)},h_t^{(S)}\in\mathbb{R}^{d}\) be last-layer hidden states:
 
-$$
-\mathcal{L}_{\text{MSE}}=\frac{1}{N}\sum_{t}{\left\|h_t^{(S)}-h_t^{(T)}\right\|_2^2},\qquad
-\mathcal{L}_{\cos}=1-\frac{1}{N}\sum_{t}{\frac{\langle h_t^{(S)},h_t^{(T)}\rangle}{\|h_t^{(S)}\|_2\,\|h_t^{(T)}\|_2}}.
-$$
+$$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 ### 4) Attention-map alignment (optional)
 For last-layer attention tensors \(A^{(S)},A^{(T)}\in\mathbb{R}^{H\times L\times L}\):
 
-$$
-\mathcal{L}_{\text{Attn}}=\frac{1}{H}\sum_{h=1}^{H}\frac{1}{L^2}\left\|A_h^{(S)}-A_h^{(T)}\right\|_F^2.
-$$
+$$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
 **Causal shift.** For auto-regressive LM, losses use \((\text{logits at }t)\) vs \((\text{label }x_{t+1})\). We implement this by slicing logits \([\,:\!,0{:}L{-}1]\) and labels \([\,:\!,1{:}L]\).
 
@@ -234,9 +197,7 @@ $$
 
 ### Typical defaults
 
-$$
-T{=}2.0,\quad \alpha{=}0.7,\;\beta{=}0.3,\;\gamma{=}0.05,\;\delta{=}0.05,\;\varepsilon{=}0.0.
-$$
+$$ T{=}2.0,\quad \alpha{=}0.7,\;\beta{=}0.3,\;\gamma{=}0.05,\;\delta{=}0.05,\;\varepsilon{=}0.0. $$
 
 ### Pseudocode (per step)
 ```python
