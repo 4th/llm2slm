@@ -164,6 +164,18 @@ kubectl port-forward svc/llm2slm-api 8080:80
 
 ## Algorithm (High‑Level)
 
+### Compact loss formula
+
+$$
+\text{Loss} =
+\alpha\,\mathrm{KL}\!\left(\mathrm{softmax}\!\left(\frac{z_t}{T}\right)\,\big\|\,\mathrm{softmax}\!\left(\frac{z_s}{T}\right)\right) T^2
++ \beta\,\mathrm{CE}\!\big(z_s, \arg\max z_t\big)
++ \gamma\,\mathrm{MSE}\!\big(h_s, h_t\big)
++ \delta\,\big(1 - \cos(h_s, h_t)\big)
++ \varepsilon\,\mathrm{MSE}\!\big(A_s, A_t\big)\;\; \text{(optional attention alignment)}
+$$
+
+
 We distill a **teacher** LLM into a **student** SLM by minimizing a hybrid objective that combines **token-level knowledge distillation**, **hard pseudo-labeling**, and **representation alignment**:
 
 \[
