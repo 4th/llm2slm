@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it."
+title: "LLM→SLM Distillation Microservice"
+version: "0.1.0"
+date-released: 2025-10-02
+authors:
+  - family-names: "Jackson"
+    given-names: "Freeman Augustus"
+repository-code: "https://github.com/4th/llm2slm"
+license: "Apache-2.0"

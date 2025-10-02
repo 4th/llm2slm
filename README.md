@@ -166,6 +166,10 @@ kubectl port-forward svc/llm2slm-api 8080:80
 
 ### Compact loss formula
 
+![Compact loss formula](assets/loss_formula.png)
+
+
+
 $$
 \text{Loss} =
 \alpha\,\mathrm{KL}\!\left(\mathrm{softmax}\!\left(\frac{z_t}{T}\right)\,\big\|\,\mathrm{softmax}\!\left(\frac{z_s}{T}\right)\right) T^2
@@ -311,6 +315,34 @@ numpy>=2.0
 14. Vaswani, A. et al. (2017). *Attention Is All You Need.* NeurIPS. <https://arxiv.org/abs/1706.03762>
 
 ---
+---
+
+## Author
+
+**Freeman Augustus Jackson**  
+Maintainer & original author. For collaboration or questions, please open an issue in the repo (https://github.com/4th/llm2slm) or reach out via GitHub.
+
+---
+
+## Cite this project
+
+If you use this software in your research or products, please cite it.
+
+**Plain text**  
+Jackson, Freeman Augustus. *LLM→SLM Distillation Microservice*. Version 0.1.0. 2025. https://github.com/4th/llm2slm.
+
+**BibTeX**
+```bibtex
+@software{jackson_llm2slm_2025,
+  author  = {Jackson, Freeman Augustus},
+  title   = {LLM→SLM Distillation Microservice},
+  year    = {2025},
+  version = {0.1.0},
+  url     = {https://github.com/4th/llm2slm},
+  license = {Apache-2.0}
+}
+```
+
 
 ## License
 
