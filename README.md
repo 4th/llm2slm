@@ -172,7 +172,7 @@ $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\math
 The factor $T^2$ preserves gradient scale under temperature smoothing.
 
 ### 2) Hard pseudo-labels (teacher argmax)
-Let \(\hat{y}_t=\arg\max_{v} z_{t,v}^{(T)}\) (no temperature):
+Let $\hat{y}t=\arg\max{v} z_{t,v}^{(T)}$ (no temperature):
 
 $$ \mathcal{L} = \alpha\, \mathcal{L}_{\mathrm{KD}} + \beta\, \mathcal{L}_{\mathrm{CE}} + \gamma\, \mathcal{L}_{\mathrm{MSE}} + \delta\, \mathcal{L}_{\cos} + \varepsilon\, \mathcal{L}_{\mathrm{Attn}}. $$
 
